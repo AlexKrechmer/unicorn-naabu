@@ -27,7 +27,8 @@
  / _ \/ _ \/ _ \/ _ \/ // /
 /_//_/\_,_/\_,_/_.__/\_,_/
                 projectdiscovery.io
-
+                
+This Unicron theme is dedicated to my daughter. 
                 
 **Unicorn Scan** is a fast and easy-to-use network port scanner built on [Naabu](https://github.com/projectdiscovery/naabu), with enhanced readability, colorful output, and a unicorn twist. Perfect for security enthusiasts, students, and pentesters who want both speed and style in their scans.
 
@@ -91,7 +92,7 @@ Based on Naabu.
 Acknowledgements
 ProjectDiscovery/Naabu – The powerful port scanning engine behind Unicorn Scan.
 
-Inspired by the unicorn 🦄 to bring some fun to network scanning.
+Inspired by my daughter's favorite, the unicorn 🦄, to bring some fun to network scanning.
 
 Quick Tip: Use Unicorn Scan for fast reconnaissance, then combine results with other security tools for in-depth testing.
 
