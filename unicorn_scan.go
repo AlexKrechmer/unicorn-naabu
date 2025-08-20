@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -16,25 +15,38 @@ const (
 	Cyan   = "\033[36m"
 	Green  = "\033[32m"
 	Yellow = "\033[33m"
+	Red    = "\033[31m"
+	Gray   = "\033[37m"
 	Reset  = "\033[0m"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: ./scan <target>")
+		fmt.Println("Usage: ./unicorn_scan <target> [ports] [-fast|-full]")
 		return
 	}
 
 	target := os.Args[1]
+	portArg := ""
+	scanMode := "-fast"
 
-	// Resolve hostname to IP
-	ips, err := net.LookupIP(target)
-	if err != nil {
-		fmt.Printf("Could not resolve target %s: %v\n", target, err)
-		return
+	// Parse optional port and mode
+	for _, arg := range os.Args[2:] {
+		if strings.HasPrefix(arg, "-") {
+			scanMode = arg
+		} else {
+			portArg = arg
+		}
 	}
-	targetIP := ips[0].String()
-	fmt.Printf("Scanning IP: %s\n", targetIP)
+
+	// Set default ports based on scan mode
+	if portArg == "" {
+		if scanMode == "-full" {
+			portArg = "-p-" // scan all TCP ports
+		} else {
+			portArg = "80,443" // default fast scan ports
+		}
+	}
 
 	// Unicorn ASCII art
 	unicornArt := `
@@ -74,6 +86,7 @@ func main() {
 	fmt.Println(Purple + naabuBanner + Reset)
 	fmt.Printf("%s[*] Scanning target: %s%s\n\n", Purple, target, Reset)
 
+
 	// Spinner goroutine
 	spinnerDone := make(chan bool)
 	go func() {
@@ -91,16 +104,23 @@ func main() {
 		}
 	}()
 
-	// Run Naabu
-	naabuCmd := exec.Command("naabu", "-silent", "-host", targetIP)
+	// Build Naabu command
+	naabuArgs := []string{"-silent", "-host", target, "-no-ping"}
+	if scanMode == "-full" {
+		naabuArgs = append(naabuArgs, "-p-")
+	} else if portArg != "" && portArg != "-p-" {
+		naabuArgs = append(naabuArgs, "-ports", portArg)
+	}
+
+	naabuCmd := exec.Command("naabu", naabuArgs...)
 	stdout, err := naabuCmd.StdoutPipe()
 	if err != nil {
-		fmt.Println("Error capturing Naabu output:", err)
+		fmt.Println(Red+"[!] Error capturing Naabu output:"+err.Error()+Reset, "")
 		return
 	}
 	naabuCmd.Stderr = os.Stderr
 	if err := naabuCmd.Start(); err != nil {
-		fmt.Println("Error starting Naabu:", err)
+		fmt.Println(Red+"[!] Error starting Naabu:"+err.Error()+Reset, "")
 		return
 	}
 
@@ -122,22 +142,42 @@ func main() {
 	fmt.Println("\rScan complete.                 ")
 
 	if len(ports) == 0 {
-		fmt.Println("No open ports found by Naabu. Defaulting to 80,443 for Nmap scan.")
-		ports = []string{"80", "443"}
+		fmt.Printf("%s[!] No open ports found by Naabu, using default ports %s%s\n", Red, portArg, Reset)
+		ports = []string{portArg}
 	}
 
 	portList := strings.Join(ports, ",")
 	fmt.Printf("%s[Naabu] Open ports: %s%s\n\n", Purple, portList, Reset)
 
-	// Run Nmap
+	// Build Nmap command
+	var nmapArgs []string
+	if portList == "-p-" {
+		nmapArgs = []string{"-sC", "-sV", "-Pn", "-p-", target}
+	} else {
+		nmapArgs = []string{"-sC", "-sV", "-Pn", "-p", portList, target}
+	}
+
 	fmt.Println(Cyan + "[*] Running Nmap..." + Reset)
-	nmapCmd := exec.Command("nmap", "-sC", "-sV", "-p", portList, target)
+	nmapCmd := exec.Command("nmap", nmapArgs...)
 	nmapOut, err := nmapCmd.CombinedOutput()
 	if err != nil {
-		fmt.Println("Error running Nmap:", err)
+		fmt.Println(Red+"[!] Error running Nmap:"+err.Error()+Reset, "")
 		return
 	}
-	fmt.Printf("%s%s%s\n", Cyan, string(nmapOut), Reset)
+
+	// Colorize Nmap output
+	for _, line := range strings.Split(string(nmapOut), "\n") {
+		switch {
+		case strings.Contains(line, "open"):
+			fmt.Println(Green + line + Reset)
+		case strings.Contains(line, "filtered"):
+			fmt.Println(Yellow + line + Reset)
+		case strings.Contains(line, "closed"):
+			fmt.Println(Gray + line + Reset)
+		default:
+			fmt.Println(Cyan + line + Reset)
+		}
+	}
 
 	fmt.Println(Green + "[+] Scan summary complete." + Reset)
 }
