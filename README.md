@@ -47,45 +47,60 @@ This Unicron theme is dedicated to my daughter.
 - Unique unicorn branding for a touch of fun without the fluff.
 
 ---
+Quick Start – Copy & Scan
 
-## Installation
+Run this to clone, build, and scan a target in one go:
 
-# Prerequisites
--------------
-- [Go installed](https://go.dev/doc/install)
-- Naabu installed and in your PATH (`go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest`)
-- Ensure `$GOPATH/bin` is in your PATH, e.g., `export PATH=$PATH:~/go/bin`
+# Clone the repo and enter directory
+`git clone https://github.com/AlexKrechmer/unicorn-naabu.git
+cd unicorn-naabu`
+
+# (Optional) Install Naabu if not already installed
+`go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest`
+
+# Build Unicorn Scan
+`go build -o unicorn_scan unicorn_scan.go`
+
+# Make executable (Linux/macOS)
+`chmod +x unicorn_scan`
+
+# Scan your target
+`./unicorn_scan example.com`
+
+Installation (Optional)
+Prerequisites
+
+Go installed
+
+Naabu installed and in your PATH:
+
+`go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest`
 
 
+Ensure $GOPATH/bin is in your PATH, e.g.,
 
-#Clone this repository:
+`export PATH=$PATH:~/go/bin`
 
-```bash
-git clone https://github.com/AlexKrechmer/unicorn-naabu.git
-cd unicorn-naabu
-Build the binary:
-
-go build -o unicorn_scan unicorn_scan.go
-Now you have a standalone unicorn_scan executable.
+Options
+Flag	Description
+`-h / --help	Show help menu
+-v / --verbose	Enable verbose output
+<target>	Target hostname or IP to scan`
 
 Usage
+`./unicorn_scan <target>`
 
-./unicorn_scan <target>
+
 Example:
 
-./unicorn_scan example.com
+`./unicorn_scan example.com`
+
+
 Scans the target for open ports.
 
 Runs Nmap service/version detection automatically.
 
 Outputs results in a colorful, easy-to-read format.
-
-Options
-Flag	Description
--h / --help	Show help menu
--v / --verbose	Enable verbose output
-<target>	Target hostname or IP to scan
-
 Contributing
 Contributions are welcome! Feel free to:
 
