@@ -1,53 +1,41 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
-	"os"
-	"os/exec"
-	"strings"
-	"time"
-)
-
-// ANSI color codes
-const (
-	Purple = "\033[35m"
-	Cyan   = "\033[36m"
-	Green  = "\033[32m"
-	Yellow = "\033[33m"
-	Red    = "\033[31m"
-	Gray   = "\033[37m"
-	Reset  = "\033[0m"
+    "bufio"
+    "flag"
+    "fmt"
+    "os"
+    "os/exec"
+    "strings"
+    "time"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: ./unicorn_scan <target> [ports] [-fast|-full]")
-		return
-	}
+    // ==== ADD FLAG HANDLING =====
+    target := flag.String("target", "", "Target IP or hostname")
+    ports := flag.String("p", "", "Ports to scan (e.g. 80,443 or 1-65535)")
+    fullTCP := flag.Bool("full-tcp", false, "Scan all TCP ports (1-65535)")
+    flag.Parse()
 
-	target := os.Args[1]
-	portArg := ""
-	scanMode := "-fast"
+    if *target == "" && len(flag.Args()) > 0 {
+        *target = flag.Args()[0] // allow positional target
+    }
 
-	// Parse optional port and mode
-	for _, arg := range os.Args[2:] {
-		if strings.HasPrefix(arg, "-") {
-			scanMode = arg
-		} else {
-			portArg = arg
-		}
-	}
+    if *target == "" {
+        fmt.Println("Please specify a target with -target or as the first argument")
+        os.Exit(1)
+    }
 
-	// Set default ports based on scan mode
-	if portArg == "" {
-		if scanMode == "-full" {
-			portArg = "-p-" // scan all TCP ports
-		} else {
-			portArg = "80,443" // default fast scan ports
-		}
-	}
+    if *fullTCP {
+        *ports = "1-65535"
+    }
 
+    if *ports == "" {
+        *ports = "80,443" // default fallback
+    }
+
+    fmt.Printf("Scanning target: %s\n", *target)
+    fmt.Printf("Using ports: %s\n", *ports)
 	// Unicorn ASCII art
 	unicornArt := `
 ⠀⠀⠀⠀⠀⠑⢦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
