@@ -65,7 +65,7 @@ cd unicorn-naabu`
 `chmod +x unicorn_scan`
 
  Scan your target
-`./unicorn_scan example.com`
+`sudo ./unicorn_scan example.com`
 
 *Installation (Optional)
 Prerequisites*
@@ -88,12 +88,12 @@ Flag	Description
 <target>	Target hostname or IP to scan`
 
 Usage
-`./unicorn_scan <target>`
+`sudo ./unicorn_scan <target>`
 
 
 Example:
 
-`./unicorn_scan example.com`
+`sudo ./unicorn_scan example.com`
 
 
 Scans the target for open ports.
