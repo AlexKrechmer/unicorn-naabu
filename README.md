@@ -50,7 +50,15 @@ This Unicron theme is dedicated to my daughter.
 
 ## Installation
 
-Clone this repository:
+# Prerequisites
+-------------
+- [Go installed](https://go.dev/doc/install)
+- Naabu installed and in your PATH (`go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest`)
+- Ensure `$GOPATH/bin` is in your PATH, e.g., `export PATH=$PATH:~/go/bin`
+
+
+
+#Clone this repository:
 
 ```bash
 git clone https://github.com/AlexKrechmer/unicorn-naabu.git
