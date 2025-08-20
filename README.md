@@ -47,28 +47,28 @@ This Unicron theme is dedicated to my daughter.
 - Unique unicorn branding for a touch of fun without the fluff.
 
 ---
-Quick Start – Copy & Scan
+*Quick Start – Copy & Scan*
 
 Run this to clone, build, and scan a target in one go:
 
-# Clone the repo and enter directory
+ Clone the repo and enter directory
 `git clone https://github.com/AlexKrechmer/unicorn-naabu.git
 cd unicorn-naabu`
 
-# (Optional) Install Naabu if not already installed
+ (Optional) Install Naabu if not already installed
 `go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest`
 
-# Build Unicorn Scan
+ Build Unicorn Scan
 `go build -o unicorn_scan unicorn_scan.go`
 
-# Make executable (Linux/macOS)
+ Make executable (Linux/macOS)
 `chmod +x unicorn_scan`
 
-# Scan your target
+ Scan your target
 `./unicorn_scan example.com`
 
-Installation (Optional)
-Prerequisites
+*Installation (Optional)
+Prerequisites*
 
 Go installed
 
