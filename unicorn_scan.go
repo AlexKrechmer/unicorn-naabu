@@ -42,9 +42,9 @@ func printBanners(target string) {
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢹⣿⣿⡟⠀⢠⣾⣿⣿
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⣿⣿⣀⣾⣿⡿⠃
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⣿⣿⣿⠏⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣿⣿⠻⣿⣿⡀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠋⣹⣿⠃⠀⠈⣿⣿⣴⠇
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⣾⠟⠀⠀⠀⠀⠘⠉⠛⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣿⣿⠻⣿⣿⡀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠋⣹⣿⠃⠀⠈⣿⣿⣴⠇
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⣾⠟⠀⠀⠀⠀⠘⠉⠛⠀
 `
 	naabuBanner := `
   ___  ___  ___ _/ /  __ __
@@ -58,12 +58,12 @@ func printBanners(target string) {
 	fmt.Printf("%s[*] Scanning target: %s%s\n\n", Purple, target, Reset)
 }
 
-
 func main() {
 	// ==== FLAGS ====
 	target := flag.String("target", "", "Target IP or hostname")
 	fullTCP := flag.Bool("full-tcp", false, "Scan all TCP ports (1-65535)")
 	useSudo := flag.Bool("sudo", false, "Use sudo for Naabu/Nmap")
+	timing := flag.Int("T", 5, "Nmap timing template (0-5), default 5=Insane")
 	flag.Parse()
 
 	if *target == "" && len(flag.Args()) > 0 {
@@ -143,29 +143,29 @@ func main() {
 	if len(openPorts) > 0 {
 		portList := strings.Join(openPorts, ",")
 		fmt.Printf("%s[Naabu] Open ports: %s%s\n\n", Purple, portList, Reset)
-		runNmap(*target, portList, *fullTCP, *useSudo)
+		runNmap(*target, portList, *fullTCP, *useSudo, *timing)
 	} else {
 		fmt.Printf("%s[!] No open ports found, running full Nmap scan until cancelled.%s\n", Red, Reset)
-		runNmapFull(*target, *useSudo)
+		runNmapFull(*target, *useSudo, *timing)
 	}
 
 	fmt.Println(Green + "[+] Scan summary complete." + Reset)
 }
 
 // ==== RUN NMAP ====
-func runNmap(target, ports string, fullTCP, useSudo bool) {
+func runNmap(target, ports string, fullTCP, useSudo bool, timing int) {
 	var nmapArgs []string
 	if fullTCP {
-		nmapArgs = []string{"-sC", "-sV", "-Pn", "-p-", target}
+		nmapArgs = []string{"-sC", "-sV", "-Pn", "-p-", "-T" + strconv.Itoa(timing), target}
 	} else {
-		nmapArgs = []string{"-sC", "-sV", "-Pn", "-p", ports, target}
+		nmapArgs = []string{"-sC", "-sV", "-Pn", "-p", ports, "-T" + strconv.Itoa(timing), target}
 	}
 	fmt.Println(Cyan + "[*] Running Nmap..." + Reset)
 	runCmdLive("nmap", nmapArgs, useSudo)
 }
 
-func runNmapFull(target string, useSudo bool) {
-	args := []string{"-sC", "-sV", "-Pn", "-p-", target}
+func runNmapFull(target string, useSudo bool, timing int) {
+	args := []string{"-sC", "-sV", "-Pn", "-p-", "-T" + strconv.Itoa(timing), target}
 	runCmdLive("nmap", args, useSudo)
 }
 
@@ -201,3 +201,4 @@ func runCmdLive(name string, args []string, useSudo bool) {
 
 	cmd.Wait()
 }
+
