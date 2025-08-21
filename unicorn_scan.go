@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -44,7 +46,7 @@ func printBanners(target string) {
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⣿⣿⣿⠏⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣿⣿⠻⣿⣿⡀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠋⣹⣿⠃⠀⠈⣿⣿⣴⠇
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⣾⠟⠀⠀⠀⠀⠘⠉⠛⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⣾⠟⠀⠀⠀⠀⠘⠉⠛⠀
 `
 	naabuBanner := `
   ___  ___  ___ _/ /  __ __
@@ -61,8 +63,9 @@ func printBanners(target string) {
 // ==== MAIN ====
 func main() {
 	target := flag.String("target", "", "Target IP or hostname")
-	fullTCP := flag.Bool("full-tcp", false, "Scan all TCP ports (1-65535)")
-	useSudo := flag.Bool("sudo", false, "Use sudo for SYN scans")
+	fullTCP := flag.Bool("full-tcp", true, "Scan all TCP ports (1-65535) by default")
+	fullScan := flag.Bool("full", false, "Run full Naabu + Nmap + OS detection scan")
+	useSudo := flag.Bool("sudo", true, "Use sudo for SYN scans by default")
 	timing := flag.Int("T", 5, "Nmap timing template (0-5)")
 	minRate := flag.Int("min-rate", 5000, "Naabu minimum rate for speed")
 	retries := flag.Int("retries", 3, "Number of retries if no ports found")
@@ -85,6 +88,23 @@ func main() {
 
 	printBanners(*target)
 
+	if *fullScan {
+		// Full mode: Naabu full TCP + Nmap + OS detection
+		openPorts := runNaabuLive(*target, true, *useSudo, *minRate, *saveFile)
+		if len(openPorts) > 0 {
+			sortPorts(openPorts)
+			portList := strings.Join(openPorts, ",")
+			fmt.Printf("%s[Naabu] Open ports found: %s%s\n\n", Purple, portList, Reset)
+			runNmapFullScan(*target, portList, *useSudo, *timing, *saveFile)
+		} else {
+			fmt.Printf("%s[!] No ports found. Running Nmap top 1000 ports fallback.%s\n", Red, Reset)
+			runNmapCommon(*target, *useSudo, *timing, *saveFile)
+		}
+		fmt.Println(Green + "[+] Full scan summary complete." + Reset)
+		return
+	}
+
+	// Standard behavior
 	openPorts := []string{}
 	for attempt := 1; attempt <= *retries; attempt++ {
 		fmt.Printf(Cyan+"[*] Naabu scan attempt %d/%d...%s\n", attempt, *retries, Reset)
@@ -100,6 +120,7 @@ func main() {
 	}
 
 	if len(openPorts) > 0 {
+		sortPorts(openPorts)
 		portList := strings.Join(openPorts, ",")
 		fmt.Printf("%s[Naabu] Open ports found: %s%s\n\n", Purple, portList, Reset)
 		runNmapColor(*target, portList, *useSudo, *timing, *saveFile)
@@ -152,6 +173,7 @@ func runNaabuLive(target string, fullTCP, useSudo bool, minRate int, saveFile st
 		defer file.Close()
 	}
 
+	re := regexp.MustCompile(`(\d+)(?:/tcp|/udp)?`)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -162,17 +184,15 @@ func runNaabuLive(target string, fullTCP, useSudo bool, minRate int, saveFile st
 			file.WriteString("[Naabu] " + line + "\n")
 		}
 
-		port := line
-		if strings.Contains(line, ":") {
-			parts := strings.Split(line, ":")
-			port = strings.Split(parts[1], " ")[0]
+		port := ""
+		if m := re.FindStringSubmatch(line); m != nil {
+			port = m[1]
 		}
-		if _, err := strconv.Atoi(port); err == nil {
-			if !portSet[port] {
-				portSet[port] = true
-				openPorts = append(openPorts, port)
-				fmt.Printf(Green+"[+] New open port found: %s%s\n", port, Reset)
-			}
+
+		if port != "" && !portSet[port] {
+			portSet[port] = true
+			openPorts = append(openPorts, port)
+			fmt.Printf(Green+"[+] New open port found: %s%s\n", port, Reset)
 		}
 	}
 
@@ -180,59 +200,27 @@ func runNaabuLive(target string, fullTCP, useSudo bool, minRate int, saveFile st
 	return openPorts
 }
 
+// ==== SORT PORTS ====
+func sortPorts(ports []string) {
+	sort.Slice(ports, func(i, j int) bool {
+		a, _ := strconv.Atoi(ports[i])
+		b, _ := strconv.Atoi(ports[j])
+		return a < b
+	})
+}
+
 // ==== NMAP COLOR OUTPUT ====
 func runNmapColor(target, ports string, useSudo bool, timing int, saveFile string) {
 	args := []string{"-sS", "-sV", "-Pn", "-p", ports, "-T" + strconv.Itoa(timing), target}
 	fmt.Println(Cyan + "[*] Running Nmap on discovered ports..." + Reset)
+	runCmdLiveSave("nmap", args, useSudo, saveFile)
+}
 
-	var cmd *exec.Cmd
-	if useSudo {
-		cmd = exec.Command("sudo", append([]string{"nmap"}, args...)...)
-	} else {
-		cmd = exec.Command("nmap", args...)
-	}
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		fmt.Println(Red+"[!] Failed to get stdout:", err, Reset)
-		return
-	}
-	cmd.Stderr = cmd.Stdout
-
-	var file *os.File
-	if saveFile != "" {
-		file, err = os.OpenFile(saveFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			fmt.Println(Red+"[!] Could not open save file:", err, Reset)
-		}
-		defer file.Close()
-	}
-
-	if err := cmd.Start(); err != nil {
-		fmt.Println(Red+"[!] Failed to start Nmap:", err, Reset)
-		return
-	}
-
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		line := scanner.Text()
-		colored := line
-		if strings.Contains(line, "/tcp") || strings.Contains(line, "/udp") {
-			switch {
-			case strings.Contains(line, "open"):
-				colored = Green + line + Reset
-			case strings.Contains(line, "closed"):
-				colored = Red + line + Reset
-			case strings.Contains(line, "filtered"):
-				colored = Yellow + line + Reset
-			}
-		}
-		fmt.Println(colored)
-		if file != nil {
-			file.WriteString("[Nmap] " + line + "\n")
-		}
-	}
-	cmd.Wait()
+// ==== FULL NMAP SCAN WITH OS DETECTION ====
+func runNmapFullScan(target, ports string, useSudo bool, timing int, saveFile string) {
+	args := []string{"-sS", "-sV", "-O", "-Pn", "-p", ports, "-T" + strconv.Itoa(timing), target}
+	fmt.Println(Cyan + "[*] Running full Nmap scan with OS detection..." + Reset)
+	runCmdLiveSave("nmap", args, useSudo, saveFile)
 }
 
 // ==== FULL NMAP ESCALATION ====
@@ -248,6 +236,7 @@ func runNmapCommon(target string, useSudo bool, timing int, saveFile string) {
 	fmt.Println(Cyan + "[*] Running fast common ports Nmap scan..." + Reset)
 	runCmdLiveSave("nmap", args, useSudo, saveFile)
 }
+
 // ==== MERGE PORTS ====
 func mergePorts(a, b []string) []string {
 	portSet := make(map[string]bool)
@@ -297,7 +286,18 @@ func runCmdLiveSave(name string, args []string, useSudo bool, saveFile string) {
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
 		line := scanner.Text()
-		fmt.Println(line)
+		colored := line
+		if strings.Contains(line, "/tcp") || strings.Contains(line, "/udp") {
+			switch {
+			case strings.Contains(line, "open"):
+				colored = Green + line + Reset
+			case strings.Contains(line, "closed"):
+				colored = Red + line + Reset
+			case strings.Contains(line, "filtered"):
+				colored = Yellow + line + Reset
+			}
+		}
+		fmt.Println(colored)
 		if file != nil {
 			file.WriteString("[" + strings.Title(name) + "] " + line + "\n")
 		}
