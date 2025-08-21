@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
 
-// Color codes
+// ==== COLOR CODES ====
 const (
 	Reset  = "\033[0m"
 	Red    = "\033[31m"
@@ -22,29 +24,69 @@ const (
 )
 
 func main() {
-	// ==== FLAG HANDLING =====
+	// ==== FLAG HANDLING ====
 	target := flag.String("target", "", "Target IP or hostname")
-	ports := flag.String("p", "", "Ports to scan (e.g. 80,443 or 1-65535)")
+	ports := flag.String("p", "", "Ports to scan (e.g., 80,443 or 1-65535)")
 	fullTCP := flag.Bool("full-tcp", false, "Scan all TCP ports (1-65535)")
+	useSudo := flag.Bool("sudo", false, "Run Nmap with sudo")
 	flag.Parse()
 
-	// Support positional target
+	// Positional argument fallback
 	if *target == "" && len(flag.Args()) > 0 {
 		*target = flag.Args()[0]
 	}
 
 	if *target == "" {
-		fmt.Println(Red + "Please specify a target with -target or as the first argument" + Reset)
+		fmt.Println(Red + "[!] Please specify a target with -target or as the first argument" + Reset)
 		os.Exit(1)
 	}
 
-	// Full TCP overrides ports
+	// Determine port list
+	portList := *ports
 	if *fullTCP {
-		*ports = "1-65535"
-	} else if *ports == "" {
-		*ports = "80,443"
+		portList = "1-65535"
+	} else if portList == "" {
+		portList = "80,443"
 	}
-	// Unicorn ASCII art
+
+	printBanners(*target)
+	spinnerDone := startSpinner(*target)
+
+	openPorts := runNaabu(*target, portList, *fullTCP)
+	spinnerDone <- struct{}{} // stop spinner
+	fmt.Println("\rScan complete.                 ")
+
+	if len(openPorts) == 0 {
+		fmt.Printf("%s[!] No open ports found, defaulting to %s%s\n", Red, portList, Reset)
+		openPorts = strings.Split(portList, ",")
+	}
+
+	// Deduplicate & sort
+	portMap := make(map[string]struct{})
+	for _, p := range openPorts {
+		portMap[p] = struct{}{}
+	}
+	var sortedPorts []string
+	for p := range portMap {
+		sortedPorts = append(sortedPorts, p)
+	}
+	sort.Slice(sortedPorts, func(i, j int) bool {
+		a, _ := strconv.Atoi(sortedPorts[i])
+		b, _ := strconv.Atoi(sortedPorts[j])
+		return a < b
+	})
+
+	portList = strings.Join(sortedPorts, ",")
+	if len(portList) > 200 {
+		portList = "1-65535" // fallback for too many ports
+	}
+
+	fmt.Printf("%s[Naabu] Open ports: %s%s\n\n", Purple, portList, Reset)
+	runNmap(*target, portList, *fullTCP, *useSudo)
+}
+
+// ==== PRINT BANNERS ====
+func printBanners(target string) {
 	unicornArt := `
 ⠀⠀⠀⠀⠀⠑⢦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠙⢷⣦⣀⠀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
@@ -77,105 +119,103 @@ func main() {
 
                 projectdiscovery.io
 `
-	// Print unicorn and banner
 	fmt.Println(Purple + unicornArt + Reset)
 	fmt.Println(Purple + naabuBanner + Reset)
 	fmt.Printf("%s[*] Scanning target: %s%s\n\n", Purple, target, Reset)
+}
 
-
-
-	
-	// ==== Spinner ====
-	spinnerDone := make(chan bool)
+// ==== SPINNER ====
+func startSpinner(target string) chan struct{} {
+	done := make(chan struct{})
 	go func() {
 		spin := []rune{'|', '/', '-', '\\'}
 		i := 0
 		for {
 			select {
-			case <-spinnerDone:
+			case <-done:
+				fmt.Printf("\r%s\r", strings.Repeat(" ", 50))
 				return
 			default:
-				fmt.Printf("\r%sScanning %s... %c%s", Yellow, *target, spin[i%len(spin)], Reset)
+				fmt.Printf("\r%sScanning %s... %c%s", Yellow, target, spin[i%len(spin)], Reset)
 				i++
 				time.Sleep(100 * time.Millisecond)
 			}
 		}
 	}()
+	return done
+}
 
-	// ==== RUN NAABU ====
-	naabuArgs := []string{"-silent", "-host", *target, "-no-ping"}
-	if *fullTCP {
-		naabuArgs = append(naabuArgs, "-p-")
+// ==== RUN NAABU ====
+func runNaabu(target, ports string, fullTCP bool) []string {
+	args := []string{"-silent", "-host", target, "-no-ping"}
+	if fullTCP {
+		args = append(args, "-p-")
 	} else {
-		naabuArgs = append(naabuArgs, "-ports", *ports)
+		args = append(args, "-ports", ports)
 	}
 
-	naabuCmd := exec.Command("sudo", "naabu", naabuArgs...)
-	stdout, err := naabuCmd.StdoutPipe()
+	// Corrected line: use the spread operator to unpack the args slice
+	cmd := exec.Command("naabu", args...)
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		fmt.Println(Red+"[!] Error capturing Naabu output:"+err.Error()+Reset, "")
-		return
+		fmt.Println(Red + "[!] Error capturing Naabu output: " + err.Error() + Reset)
+		return nil
 	}
-	naabuCmd.Stderr = os.Stderr
-	if err := naabuCmd.Start(); err != nil {
-		fmt.Println(Red+"[!] Error starting Naabu:"+err.Error()+Reset, "")
-		return
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		fmt.Println(Red + "[!] Error starting Naabu: " + err.Error() + Reset)
+		return nil
 	}
 
 	openPorts := []string{}
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line != "" {
+		if line == "" {
+			continue
+		}
+		port := ""
+		if strings.Contains(line, ":") {
 			parts := strings.Split(line, ":")
-			if len(parts) > 1 {
-				openPorts = append(openPorts, parts[1])
-			} else {
-				openPorts = append(openPorts, parts[0])
-			}
+			port = strings.TrimSpace(parts[len(parts)-1])
+		} else {
+			port = line
+		}
+		if _, err := strconv.Atoi(port); err == nil {
+			openPorts = append(openPorts, port)
 		}
 	}
-	naabuCmd.Wait()
-	spinnerDone <- true
-	fmt.Println("\rScan complete.                 ")
-
-	if len(openPorts) == 0 {
-		fmt.Printf("%s[!] No open ports found by Naabu, using default ports %s%s\n", Red, *ports, Reset)
-		openPorts = []string{*ports}
+	if err := scanner.Err(); err != nil {
+		fmt.Println(Red + "[!] Error reading Naabu output: " + err.Error() + Reset)
 	}
 
-	portList := strings.Join(openPorts, ",")
-	fmt.Printf("%s[Naabu] Open ports: %s%s\n\n", Purple, portList, Reset)
+	cmd.Wait()
+	return openPorts
+}
 
-	// ==== RUN NMAP ====
-	var nmapArgs []string
-	if *fullTCP {
-		nmapArgs = []string{"-sC", "-sV", "-Pn", "-p-", *target}
+// ==== RUN NMAP ====
+func runNmap(target, portList string, fullTCP, useSudo bool) {
+	args := []string{"-sC", "-sV", "-Pn"}
+	if fullTCP || portList == "1-65535" {
+		args = append(args, "-p-", target)
 	} else {
-		nmapArgs = []string{"-sC", "-sV", "-Pn", "-p", portList, *target}
+		args = append(args, "-p", portList, target)
 	}
 
 	fmt.Println(Cyan + "[*] Running Nmap..." + Reset)
-	nmapCmd := exec.Command("sudo", "nmap", nmapArgs...)
-	nmapOut, err := nmapCmd.CombinedOutput()
-	if err != nil {
-		fmt.Println(Red+"[!] Error running Nmap:"+err.Error()+Reset, "")
-		return
-	}
 
-	// Colorize Nmap output
-	for _, line := range strings.Split(string(nmapOut), "\n") {
-		switch {
-		case strings.Contains(line, "open"):
-			fmt.Println(Green + line + Reset)
-		case strings.Contains(line, "filtered"):
-			fmt.Println(Yellow + line + Reset)
-		case strings.Contains(line, "closed"):
-			fmt.Println(Gray + line + Reset)
-		default:
-			fmt.Println(Cyan + line + Reset)
-		}
+	var nmapCmd *exec.Cmd
+	if useSudo {
+		allArgs := append([]string{"nmap"}, args...)
+		nmapCmd = exec.Command("sudo", allArgs...)
+	} else {
+		// Corrected line: use the spread operator to unpack the args slice
+		nmapCmd = exec.Command("nmap", args...)
 	}
-
-	fmt.Println(Green + "[+] Scan summary complete." + Reset)
+	nmapCmd.Stdout = os.Stdout
+	nmapCmd.Stderr = os.Stderr
+	if err := nmapCmd.Run(); err != nil {
+		fmt.Println(Red + "[!] Error running Nmap: " + err.Error() + Reset)
+	}
 }
