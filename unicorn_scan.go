@@ -58,13 +58,16 @@ func printBanners(target string) {
 	fmt.Printf("%s[*] Scanning target: %s%s\n\n", Purple, target, Reset)
 }
 
+
 // ==== MAIN ====
 func main() {
 	target := flag.String("target", "", "Target IP or hostname")
 	fullTCP := flag.Bool("full-tcp", false, "Scan all TCP ports (1-65535)")
-	useSudo := flag.Bool("sudo", false, "Use sudo for Naabu/Nmap")
-	timing := flag.Int("T", 5, "Nmap timing template (0-5), default 5=Insane")
+	useSudo := flag.Bool("sudo", false, "Use sudo for SYN scans")
+	timing := flag.Int("T", 5, "Nmap timing template (0-5)")
 	minRate := flag.Int("min-rate", 5000, "Naabu minimum rate for speed")
+	retries := flag.Int("retries", 3, "Number of retries if no ports found")
+	backoff := flag.Int("backoff", 3, "Backoff seconds between retries")
 	flag.Parse()
 
 	if *target == "" && len(flag.Args()) > 0 {
@@ -77,34 +80,32 @@ func main() {
 
 	printBanners(*target)
 
-	// ==== SPINNER ====
-	spinnerDone := make(chan bool)
-	go func() {
-		spin := []rune{'|', '/', '-', '\\'}
-		i := 0
-		for {
-			select {
-			case <-spinnerDone:
-				return
-			default:
-				fmt.Printf("\r%sScanning %s... %c%s", Yellow, *target, spin[i%len(spin)], Reset)
-				i++
-				time.Sleep(100 * time.Millisecond)
-			}
-		}
-	}()
+	if !*useSudo {
+		fmt.Println(Yellow + "[!] SYN scans require sudo. Some scans may be inconsistent without it." + Reset)
+	}
 
-	// ==== RUN NAABU LIVE ====
-	openPorts := runNaabuLive(*target, *fullTCP, *useSudo, *minRate)
-	spinnerDone <- true
-	fmt.Println("\rScan complete.                 ")
+	openPorts := []string{}
+	for attempt := 1; attempt <= *retries; attempt++ {
+		fmt.Printf(Cyan+"[*] Naabu scan attempt %d/%d...%s\n", attempt, *retries, Reset)
+		newPorts := runNaabuLive(*target, *fullTCP, *useSudo, *minRate)
+		openPorts = mergePorts(openPorts, newPorts)
+		if len(openPorts) > 0 {
+			break
+		}
+		if attempt < *retries {
+			fmt.Printf(Yellow+"[!] No ports found. Backing off for %d seconds before retry...%s\n", *backoff, Reset)
+			time.Sleep(time.Duration(*backoff) * time.Second)
+		}
+	}
 
 	if len(openPorts) > 0 {
 		portList := strings.Join(openPorts, ",")
 		fmt.Printf("%s[Naabu] Open ports found: %s%s\n\n", Purple, portList, Reset)
 		runNmap(*target, portList, *useSudo, *timing)
 	} else {
-		fmt.Printf("%s[!] No open ports found, running full Nmap scan until cancelled.%s\n", Red, Reset)
+		fmt.Printf("%s[!] No open ports found, running fast common ports Nmap scan first.%s\n", Red, Reset)
+		runNmapCommon(*target, *useSudo, *timing)
+		fmt.Printf("%s[*] Escalating to full TCP Nmap scan...%s\n", Yellow, Reset)
 		runNmapFull(*target, *useSudo, *timing)
 	}
 
@@ -161,10 +162,33 @@ func runNaabuLive(target string, fullTCP, useSudo bool, minRate int) []string {
 	return openPorts
 }
 
+// ==== MERGE PORTS ====
+func mergePorts(a, b []string) []string {
+	portSet := make(map[string]bool)
+	for _, p := range a {
+		portSet[p] = true
+	}
+	for _, p := range b {
+		portSet[p] = true
+	}
+	result := []string{}
+	for p := range portSet {
+		result = append(result, p)
+	}
+	return result
+}
+
 // ==== NMAP ====
 func runNmap(target, ports string, useSudo bool, timing int) {
 	args := []string{"-sC", "-sV", "-Pn", "-p", ports, "-T" + strconv.Itoa(timing), target}
 	fmt.Println(Cyan + "[*] Running Nmap on discovered ports..." + Reset)
+	runCmdLive("nmap", args, useSudo)
+}
+
+func runNmapCommon(target string, useSudo bool, timing int) {
+	// Typical 1000 ports
+	args := []string{"-sC", "-sV", "-Pn", "-T" + strconv.Itoa(timing), target}
+	fmt.Println(Cyan + "[*] Running fast common ports Nmap scan..." + Reset)
 	runCmdLive("nmap", args, useSudo)
 }
 
