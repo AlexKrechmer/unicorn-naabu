@@ -180,25 +180,9 @@ func runNaabuLive(target string, fullTCP, useSudo bool, minRate int, saveFile st
 	return openPorts
 }
 
-// ==== MERGE PORTS ====
-func mergePorts(a, b []string) []string {
-	portSet := make(map[string]bool)
-	for _, p := range a {
-		portSet[p] = true
-	}
-	for _, p := range b {
-		portSet[p] = true
-	}
-	result := []string{}
-	for p := range portSet {
-		result = append(result, p)
-	}
-	return result
-}
-
 // ==== NMAP COLOR OUTPUT ====
 func runNmapColor(target, ports string, useSudo bool, timing int, saveFile string) {
-	args := []string{"-sC", "-sV", "-Pn", "-p", ports, "-T" + strconv.Itoa(timing), target}
+	args := []string{"-sS", "-sV", "-Pn", "-p", ports, "-T" + strconv.Itoa(timing), target}
 	fmt.Println(Cyan + "[*] Running Nmap on discovered ports..." + Reset)
 
 	var cmd *exec.Cmd
@@ -251,17 +235,33 @@ func runNmapColor(target, ports string, useSudo bool, timing int, saveFile strin
 	cmd.Wait()
 }
 
-// ==== COMMON & FULL NMAP ====
-func runNmapCommon(target string, useSudo bool, timing int, saveFile string) {
-	args := []string{"-sC", "-sV", "-Pn", "-T" + strconv.Itoa(timing), target}
-	fmt.Println(Cyan + "[*] Running fast common ports Nmap scan..." + Reset)
+// ==== FULL NMAP ESCALATION ====
+func runNmapFull(target string, useSudo bool, timing int, saveFile string) {
+	args := []string{"-sS", "-sV", "-Pn", "-p-", "-T" + strconv.Itoa(timing), target}
+	fmt.Println(Cyan + "[*] Running full Nmap scan..." + Reset)
 	runCmdLiveSave("nmap", args, useSudo, saveFile)
 }
 
-func runNmapFull(target string, useSudo bool, timing int, saveFile string) {
-	args := []string{"-sC", "-sV", "-Pn", "-p-", "-T" + strconv.Itoa(timing), target}
-	fmt.Println(Cyan + "[*] Running full Nmap scan..." + Reset)
+// ==== COMMON PORT FALLBACK ====
+func runNmapCommon(target string, useSudo bool, timing int, saveFile string) {
+	args := []string{"-sS", "-sV", "-Pn", "-T" + strconv.Itoa(timing), target}
+	fmt.Println(Cyan + "[*] Running fast common ports Nmap scan..." + Reset)
 	runCmdLiveSave("nmap", args, useSudo, saveFile)
+}
+// ==== MERGE PORTS ====
+func mergePorts(a, b []string) []string {
+	portSet := make(map[string]bool)
+	for _, p := range a {
+		portSet[p] = true
+	}
+	for _, p := range b {
+		portSet[p] = true
+	}
+	result := []string{}
+	for p := range portSet {
+		result = append(result, p)
+	}
+	return result
 }
 
 // ==== COMMAND EXECUTION WITH OPTIONAL SAVE ====
