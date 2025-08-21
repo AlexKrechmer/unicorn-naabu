@@ -46,7 +46,7 @@ func printBanners(target string) {
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⣿⣿⣿⠏⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣿⣿⠻⣿⣿⡀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠋⣹⣿⠃⠀⠈⣿⣿⣴⠇
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⣾⠟⠀⠀⠀⠀⠘⠉⠛⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⣾⠟⠀⠀⠀⠀⠘⠉⠛⠀
 `
 	naabuBanner := `
   ___  ___  ___ _/ /  __ __
@@ -89,12 +89,14 @@ func main() {
 	printBanners(*target)
 
 	if *fullScan {
-		// Full mode: Naabu full TCP + Nmap + OS detection
+		// ✅ FULL SCAN: Naabu full TCP + Nmap + OS detection
+		// Runs three distinct scan modes for reliability.
 		openPorts := runNaabuLive(*target, true, *useSudo, *minRate, *saveFile)
 		if len(openPorts) > 0 {
 			sortPorts(openPorts)
 			portList := strings.Join(openPorts, ",")
 			fmt.Printf("%s[Naabu] Open ports found: %s%s\n\n", Purple, portList, Reset)
+			// Automatically falls back to top1000 Nmap scan if needed
 			runNmapFullScan(*target, portList, *useSudo, *timing, *saveFile)
 		} else {
 			fmt.Printf("%s[!] No ports found. Running Nmap top 1000 ports fallback.%s\n", Red, Reset)
@@ -104,14 +106,14 @@ func main() {
 		return
 	}
 
-	// Standard behavior
+	// Standard behavior with retries/backoff
 	openPorts := []string{}
 	for attempt := 1; attempt <= *retries; attempt++ {
 		fmt.Printf(Cyan+"[*] Naabu scan attempt %d/%d...%s\n", attempt, *retries, Reset)
 		newPorts := runNaabuLive(*target, *fullTCP, *useSudo, *minRate, *saveFile)
 		openPorts = mergePorts(openPorts, newPorts)
 		if len(openPorts) > 0 {
-			break
+			break // Stops early if any ports are found
 		}
 		if attempt < *retries {
 			fmt.Printf(Yellow+"[!] No ports found. Backing off for %d seconds before retry...%s\n", *backoff, Reset)
