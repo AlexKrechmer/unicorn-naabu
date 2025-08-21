@@ -115,7 +115,7 @@ func main() {
 
 // ==== NAABU LIVE ASYNC (JSON PARSE + live printing) ====
 func runNaabuLiveAsync(target string, fullTCP, useSudo bool, minRate int, saveFile string) []string {
-	args := []string{"-host", target, "-oJ", "-", "--min-rate", strconv.Itoa(minRate)}
+	args := []string{"-target", target, "-json", "--rate", strconv.Itoa(minRate)}
 	if fullTCP {
 		args = append(args, "-p-")
 	}
@@ -127,8 +127,12 @@ func runNaabuLiveAsync(target string, fullTCP, useSudo bool, minRate int, saveFi
 		cmd = exec.Command("naabu", args...)
 	}
 
-	fmt.Println(Cyan + "[*] Starting full Naabu sweep..." + Reset)
-	stdout, _ := cmd.StdoutPipe()
+	fmt.Println(Cyan + "[*] Starting Naabu sweep..." + Reset)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		fmt.Println(Red+"[!] Failed to get stdout pipe:", err, Reset)
+		return nil
+	}
 	cmd.Stderr = cmd.Stdout
 
 	if err := cmd.Start(); err != nil {
@@ -139,19 +143,23 @@ func runNaabuLiveAsync(target string, fullTCP, useSudo bool, minRate int, saveFi
 	scanner := bufio.NewScanner(stdout)
 	openPorts := []string{}
 	portSet := make(map[int]bool)
-	var wg sync.WaitGroup
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
-		for scanner.Scan() {
-			line := scanner.Text()
-			if line == "" {
-				continue
-			}
-			var result NaabuResult
-			if err := json.Unmarshal([]byte(line), &result); err == nil && result.Port.Port != 0 {
-				port := result.Port.Port
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+
+		var result map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &result); err != nil {
+			// ignore non-JSON lines
+			continue
+		}
+
+		// check if port info exists
+		if portObj, ok := result["port"].(map[string]interface{}); ok {
+			if portVal, ok := portObj["port"].(float64); ok {
+				port := int(portVal)
 				if !portSet[port] {
 					portSet[port] = true
 					openPorts = append(openPorts, strconv.Itoa(port))
@@ -159,9 +167,8 @@ func runNaabuLiveAsync(target string, fullTCP, useSudo bool, minRate int, saveFi
 				}
 			}
 		}
-	}()
+	}
 
-	wg.Wait()
 	cmd.Wait()
 	return openPorts
 }
