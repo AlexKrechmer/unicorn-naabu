@@ -124,6 +124,7 @@ func main() {
 }
 
 // ==== FULL SCAN FUNCTION ====
+// ==== FULL SCAN FUNCTION ====
 func runFullScan(target string, fullTCP, useSudo bool, minRate, timing int, saveFile string) {
 	fmt.Println(Cyan + "[*] Running FULL Naabu + Nmap + OS detection..." + Reset)
 
@@ -150,6 +151,7 @@ func runFullScan(target string, fullTCP, useSudo bool, minRate, timing int, save
 		sortPorts(allPorts)
 		portList := strings.Join(allPorts, ",")
 		fmt.Printf("%s[Naabu] Open ports after all passes: %s%s\n\n", Purple, portList, Reset)
+		// Full Nmap with OS detection
 		runNmapFullScan(target, portList, useSudo, timing, saveFile)
 	} else {
 		fmt.Printf("%s[!] No ports found. Running Nmap top 1000 ports fallback.%s\n", Red, Reset)
@@ -157,6 +159,13 @@ func runFullScan(target string, fullTCP, useSudo bool, minRate, timing int, save
 	}
 
 	fmt.Println(Green + "[+] Full scan summary complete." + Reset)
+}
+
+// ==== NMAP FULL SCAN WITH OS DETECTION ====
+func runNmapFullScan(target, ports string, useSudo bool, timing int, saveFile string) {
+	args := []string{"-sS", "-sV", "-O", "-Pn", "-p", ports, "-T" + strconv.Itoa(timing), target}
+	fmt.Println(Cyan + "[*] Running full Nmap scan with OS detection..." + Reset)
+	runCmdLiveSave("nmap", args, useSudo, saveFile)
 }
 
 // ==== NAABU LIVE ====
