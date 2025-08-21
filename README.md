@@ -67,8 +67,9 @@ Quick Start – Copy & Scan
 Run this to clone, build, and scan a target in one go:
 
 # Clone the repo and enter directory
-`git clone https://github.com/AlexKrechmer/unicorn-naabu.git
-cd unicorn-naabu`
+`git clone https://github.com/AlexKrechmer/unicorn-naabu.git`
+
+`cd unicorn-naabu`
 
 (Optional) Install Naabu if not already installed
 `go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest`
