@@ -161,70 +161,51 @@ func runFullScan(target string, fullTCP, useSudo bool, minRate, timing int, save
 
 // ==== NAABU LIVE ====
 func runNaabuLive(target string, fullTCP, useSudo bool, minRate int, saveFile string) []string {
-	args := []string{"-silent", "-host", target, "--min-rate", strconv.Itoa(minRate)}
-	if fullTCP {
-		args = append(args, "-p-")
-	}
+    args := []string{"-host", target, "-oJ", "-", "--min-rate", strconv.Itoa(minRate)}
+    if fullTCP {
+        args = append(args, "-p-")
+    }
 
-	var cmd *exec.Cmd
-	if useSudo {
-		cmd = exec.Command("sudo", append([]string{"naabu"}, args...)...)
-	} else {
-		cmd = exec.Command("naabu", args...)
-	}
+    var cmd *exec.Cmd
+    if useSudo {
+        cmd = exec.Command("sudo", append([]string{"naabu"}, args...)...)
+    } else {
+        cmd = exec.Command("naabu", args...)
+    }
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		fmt.Println(Red+"[!] Failed to get stdout:", err, Reset)
-		return nil
-	}
-	cmd.Stderr = cmd.Stdout
+    fmt.Println(Cyan+"[*] Starting full Naabu sweep..."+Reset)
+    stdout, _ := cmd.StdoutPipe()
+    cmd.Stderr = cmd.Stdout
 
-	if err := cmd.Start(); err != nil {
-		fmt.Println(Red+"[!] Failed to start Naabu:", err, Reset)
-		return nil
-	}
+    if err := cmd.Start(); err != nil {
+        fmt.Println(Red+"[!] Failed to start Naabu:", err, Reset)
+        return nil
+    }
 
-	scanner := bufio.NewScanner(stdout)
-	openPorts := []string{}
-	portSet := make(map[string]bool)
+    scanner := bufio.NewScanner(stdout)
+    openPorts := []string{}
+    portSet := make(map[string]bool)
 
-	var file *os.File
-	if saveFile != "" {
-		file, err = os.OpenFile(saveFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			fmt.Println(Red+"[!] Could not open save file:", err, Reset)
-		}
-		defer file.Close()
-	}
+    for scanner.Scan() {
+        line := scanner.Text()
+        if line == "" { continue }
+        // Parse JSON output from -oJ
+        if strings.Contains(line, `"port"`) {
+            re := regexp.MustCompile(`"port":\s*(\d+)`)
+            if m := re.FindStringSubmatch(line); m != nil {
+                port := m[1]
+                if !portSet[port] {
+                    portSet[port] = true
+                    openPorts = append(openPorts, port)
+                    fmt.Printf(Green+"[+] Open port found: %s%s\n", port, Reset)
+                }
+            }
+        }
+    }
 
-	re := regexp.MustCompile(`(\d+)(?:/tcp|/udp)?`)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-
-		if file != nil {
-			file.WriteString("[Naabu] " + line + "\n")
-		}
-
-		port := ""
-		if m := re.FindStringSubmatch(line); m != nil {
-			port = m[1]
-		}
-
-		if port != "" && !portSet[port] {
-			portSet[port] = true
-			openPorts = append(openPorts, port)
-			fmt.Printf(Green+"[+] New open port found: %s%s\n", port, Reset)
-		}
-	}
-
-	cmd.Wait()
-	return openPorts
+    cmd.Wait()
+    return openPorts
 }
-
 // ==== SORT PORTS ====
 func sortPorts(ports []string) {
 	sort.Slice(ports, func(i, j int) bool {
