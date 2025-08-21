@@ -19,7 +19,6 @@ const (
 	Yellow = "\033[33m"
 	Cyan   = "\033[36m"
 	Purple = "\033[35m"
-	Gray   = "\033[37m"
 )
 
 func main() {
@@ -108,13 +107,12 @@ func main() {
 		fmt.Printf("%s[Naabu] Open ports: %s%s\n\n", Purple, portList, Reset)
 		runNmap(*target, portList, *fullTCP, *useSudo)
 	} else {
-		fmt.Printf("%s[!] No open ports found by Naabu, running full Nmap scan until cancelled.%s\n", Red, Reset)
+		fmt.Printf("%s[!] No open ports found, running full Nmap scan until cancelled.%s\n", Red, Reset)
 		runNmapFull(*target, *useSudo)
 	}
 
 	fmt.Println(Green + "[+] Scan summary complete." + Reset)
 }
-
 
 // ==== PRINT BANNERS ====
 func printBanners(target string) {
@@ -137,12 +135,10 @@ func printBanners(target string) {
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢹⣿⣿⡟⠀⢠⣾⣿⣿
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⣿⣿⣀⣾⣿⡿⠃
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⣿⣿⣿⠏⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣿⣿⠻⣿⣿⡀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠋⣹⣿⠃⠀⠈⣿⣿⣴⠇
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⣾⠟⠀⠀⠀⠀⠘⠉⠛⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣿⣿⠻⣿⣿⡀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠋⣹⣿⠃⠀⠈⣿⣿⣴⠇
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⣾⠟⠀⠀⠀⠀⠘⠉⠛⠀
 `
-
-	// Naabu banner ASCII
 	naabuBanner := `
   ___  ___  ___ _/ /  __ __
  / _ \/ _ \/ _ \/ _ \/ // /
