@@ -78,11 +78,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	printBanners(*target)
-
-	if !*useSudo {
-		fmt.Println(Yellow + "[!] SYN scans require sudo. Some scans may be inconsistent without it." + Reset)
+	// Force sudo for SYN scans
+	if *useSudo && os.Geteuid() != 0 {
+		fmt.Println(Red + "[!] SYN scans require sudo/root. Please run this script with sudo." + Reset)
+		os.Exit(1)
 	}
+
+	printBanners(*target)
 
 	openPorts := []string{}
 	for attempt := 1; attempt <= *retries; attempt++ {
@@ -121,6 +123,7 @@ func runNaabuLive(target string, fullTCP, useSudo bool, minRate int) []string {
 
 	var cmd *exec.Cmd
 	if useSudo {
+		args = append([]string{"-sS"}, args...) // Force SYN scan
 		cmd = exec.Command("sudo", append([]string{"naabu"}, args...)...)
 	} else {
 		cmd = exec.Command("naabu", args...)
@@ -186,7 +189,6 @@ func runNmap(target, ports string, useSudo bool, timing int) {
 }
 
 func runNmapCommon(target string, useSudo bool, timing int) {
-	// Typical 1000 ports
 	args := []string{"-sC", "-sV", "-Pn", "-T" + strconv.Itoa(timing), target}
 	fmt.Println(Cyan + "[*] Running fast common ports Nmap scan..." + Reset)
 	runCmdLive("nmap", args, useSudo)
