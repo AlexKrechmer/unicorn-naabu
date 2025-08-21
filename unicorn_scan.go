@@ -89,20 +89,7 @@ func main() {
 	printBanners(*target)
 
 	if *fullScan {
-		// ✅ FULL SCAN: Naabu full TCP + Nmap + OS detection
-		// Runs three distinct scan modes for reliability.
-		openPorts := runNaabuLive(*target, true, *useSudo, *minRate, *saveFile)
-		if len(openPorts) > 0 {
-			sortPorts(openPorts)
-			portList := strings.Join(openPorts, ",")
-			fmt.Printf("%s[Naabu] Open ports found: %s%s\n\n", Purple, portList, Reset)
-			// Automatically falls back to top1000 Nmap scan if needed
-			runNmapFullScan(*target, portList, *useSudo, *timing, *saveFile)
-		} else {
-			fmt.Printf("%s[!] No ports found. Running Nmap top 1000 ports fallback.%s\n", Red, Reset)
-			runNmapCommon(*target, *useSudo, *timing, *saveFile)
-		}
-		fmt.Println(Green + "[+] Full scan summary complete." + Reset)
+		runFullScan(*target, *fullTCP, *useSudo, *minRate, *timing, *saveFile)
 		return
 	}
 
@@ -113,7 +100,7 @@ func main() {
 		newPorts := runNaabuLive(*target, *fullTCP, *useSudo, *minRate, *saveFile)
 		openPorts = mergePorts(openPorts, newPorts)
 		if len(openPorts) > 0 {
-			break // Stops early if any ports are found
+			break
 		}
 		if attempt < *retries {
 			fmt.Printf(Yellow+"[!] No ports found. Backing off for %d seconds before retry...%s\n", *backoff, Reset)
@@ -134,6 +121,42 @@ func main() {
 	}
 
 	fmt.Println(Green + "[+] Scan summary complete." + Reset)
+}
+
+// ==== FULL SCAN FUNCTION ====
+func runFullScan(target string, fullTCP, useSudo bool, minRate, timing int, saveFile string) {
+	fmt.Println(Cyan + "[*] Running FULL Naabu + Nmap + OS detection..." + Reset)
+
+	allPorts := []string{}
+
+	// Pass 1: Full TCP scan
+	fmt.Println(Yellow + "[*] Naabu pass 1: Full TCP scan (-p-)" + Reset)
+	ports1 := runNaabuLive(target, fullTCP, useSudo, minRate, saveFile)
+	allPorts = mergePorts(allPorts, ports1)
+
+	// Pass 2: SYN scan (requires sudo)
+	if useSudo {
+		fmt.Println(Yellow + "[*] Naabu pass 2: SYN scan" + Reset)
+		ports2 := runNaabuLive(target, fullTCP, useSudo, minRate, saveFile)
+		allPorts = mergePorts(allPorts, ports2)
+	}
+
+	// Pass 3: TCP connect fallback (non-root)
+	fmt.Println(Yellow + "[*] Naabu pass 3: TCP connect fallback" + Reset)
+	ports3 := runNaabuLive(target, fullTCP, false, minRate, saveFile)
+	allPorts = mergePorts(allPorts, ports3)
+
+	if len(allPorts) > 0 {
+		sortPorts(allPorts)
+		portList := strings.Join(allPorts, ",")
+		fmt.Printf("%s[Naabu] Open ports after all passes: %s%s\n\n", Purple, portList, Reset)
+		runNmapFullScan(target, portList, useSudo, timing, saveFile)
+	} else {
+		fmt.Printf("%s[!] No ports found. Running Nmap top 1000 ports fallback.%s\n", Red, Reset)
+		runNmapCommon(target, useSudo, timing, saveFile)
+	}
+
+	fmt.Println(Green + "[+] Full scan summary complete." + Reset)
 }
 
 // ==== NAABU LIVE ====
@@ -211,28 +234,25 @@ func sortPorts(ports []string) {
 	})
 }
 
-// ==== NMAP COLOR OUTPUT ====
+// ==== NMAP FUNCTIONS ====
 func runNmapColor(target, ports string, useSudo bool, timing int, saveFile string) {
 	args := []string{"-sS", "-sV", "-Pn", "-p", ports, "-T" + strconv.Itoa(timing), target}
 	fmt.Println(Cyan + "[*] Running Nmap on discovered ports..." + Reset)
 	runCmdLiveSave("nmap", args, useSudo, saveFile)
 }
 
-// ==== FULL NMAP SCAN WITH OS DETECTION ====
 func runNmapFullScan(target, ports string, useSudo bool, timing int, saveFile string) {
 	args := []string{"-sS", "-sV", "-O", "-Pn", "-p", ports, "-T" + strconv.Itoa(timing), target}
 	fmt.Println(Cyan + "[*] Running full Nmap scan with OS detection..." + Reset)
 	runCmdLiveSave("nmap", args, useSudo, saveFile)
 }
 
-// ==== FULL NMAP ESCALATION ====
 func runNmapFull(target string, useSudo bool, timing int, saveFile string) {
 	args := []string{"-sS", "-sV", "-Pn", "-p-", "-T" + strconv.Itoa(timing), target}
 	fmt.Println(Cyan + "[*] Running full Nmap scan..." + Reset)
 	runCmdLiveSave("nmap", args, useSudo, saveFile)
 }
 
-// ==== COMMON PORT FALLBACK ====
 func runNmapCommon(target string, useSudo bool, timing int, saveFile string) {
 	args := []string{"-sS", "-sV", "-Pn", "-T" + strconv.Itoa(timing), target}
 	fmt.Println(Cyan + "[*] Running fast common ports Nmap scan..." + Reset)
