@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Color codes
@@ -26,11 +27,10 @@ const (
 type NaabuResult struct {
 	Ip   string `json:"ip"`
 	Port struct {
-		Port int    `json:"port"`
+		Port  int    `json:"port"`
 		Proto string `json:"proto"`
 	} `json:"port"`
 }
-
 
 // ==== PRINT BANNERS ====
 func printBanners(target string) {
@@ -50,12 +50,10 @@ func printBanners(target string) {
 ⠀⠀⠀⠀⠀⠈⠿⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣧⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⠻⢿⣿⣿⣿⣿⣿⣿⣧⡀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣿⣿⣿⣿⣿⠟⢿⣷⡄
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢹⣿⣿⡟⠀⢠⣾⣿⣿
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⣿⣿⣀⣾⣿⡿⠃
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⣿⣿⣿⠏⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣿⣿⠻⣿⣿⡀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠐⠋⣹⣿⠃⠀⠈⣿⣿⣴⠇
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠠⣾⠟⠀⠀⠀⠀⠘⠉⠛⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢹⣿⣿⡟⠀⢠⣾⣿⣿
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⣿⣿⣀⣾⣿⡿⠃
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⣿⣿⣿⠏
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣿⣿⠻⣿⣿⡀
 `
 	naabuBanner := `
   ___  ___  ___ _/ /  __ __
@@ -100,7 +98,7 @@ func main() {
 		return
 	}
 
-	openPorts := runNaabuLive(*target, *fullTCP, *useSudo, *minRate, *saveFile)
+	openPorts := runNaabuLiveAsync(*target, *fullTCP, *useSudo, *minRate, *saveFile)
 
 	if len(openPorts) > 0 {
 		sortPorts(openPorts)
@@ -115,8 +113,8 @@ func main() {
 	fmt.Println(Green + "[+] Scan summary complete." + Reset)
 }
 
-// ==== NAABU LIVE (JSON PARSE) ====
-func runNaabuLive(target string, fullTCP, useSudo bool, minRate int, saveFile string) []string {
+// ==== NAABU LIVE ASYNC (JSON PARSE + live printing) ====
+func runNaabuLiveAsync(target string, fullTCP, useSudo bool, minRate int, saveFile string) []string {
 	args := []string{"-host", target, "-oJ", "-", "--min-rate", strconv.Itoa(minRate)}
 	if fullTCP {
 		args = append(args, "-p-")
@@ -129,7 +127,7 @@ func runNaabuLive(target string, fullTCP, useSudo bool, minRate int, saveFile st
 		cmd = exec.Command("naabu", args...)
 	}
 
-	fmt.Println(Cyan+"[*] Starting full Naabu sweep..."+Reset)
+	fmt.Println(Cyan + "[*] Starting full Naabu sweep..." + Reset)
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Stderr = cmd.Stdout
 
@@ -141,23 +139,29 @@ func runNaabuLive(target string, fullTCP, useSudo bool, minRate int, saveFile st
 	scanner := bufio.NewScanner(stdout)
 	openPorts := []string{}
 	portSet := make(map[int]bool)
+	var wg sync.WaitGroup
+	wg.Add(1)
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-		var result NaabuResult
-		if err := json.Unmarshal([]byte(line), &result); err == nil && result.Port.Port != 0 {
-			port := result.Port.Port
-			if !portSet[port] {
-				portSet[port] = true
-				openPorts = append(openPorts, strconv.Itoa(port))
-				fmt.Printf(Green+"[+] Open port found: %d%s\n", port, Reset)
+	go func() {
+		defer wg.Done()
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line == "" {
+				continue
+			}
+			var result NaabuResult
+			if err := json.Unmarshal([]byte(line), &result); err == nil && result.Port.Port != 0 {
+				port := result.Port.Port
+				if !portSet[port] {
+					portSet[port] = true
+					openPorts = append(openPorts, strconv.Itoa(port))
+					fmt.Printf(Green+"[+] Open port found: %d%s\n", port, Reset)
+				}
 			}
 		}
-	}
+	}()
 
+	wg.Wait()
 	cmd.Wait()
 	return openPorts
 }
@@ -170,6 +174,7 @@ func sortPorts(ports []string) {
 		return a < b
 	})
 }
+
 // ==== RUN NMAP WITH COLORS (for found ports) ====
 func runNmapColor(target, ports string, useSudo bool, timing int, saveFile string) {
 	args := []string{"-sV", "-T" + strconv.Itoa(timing), "-p", ports, target}
@@ -196,7 +201,7 @@ func runNmapFull(target string, useSudo bool, timing int, saveFile string) {
 func runFullScan(target string, fullTCP, useSudo bool, minRate, timing int, saveFile string) {
 	fmt.Println(Yellow + "[*] Running full scan mode: Naabu + Nmap + OS detection" + Reset)
 
-	openPorts := runNaabuLive(target, fullTCP, useSudo, minRate, saveFile)
+	openPorts := runNaabuLiveAsync(target, fullTCP, useSudo, minRate, saveFile)
 
 	if len(openPorts) > 0 {
 		sortPorts(openPorts)
