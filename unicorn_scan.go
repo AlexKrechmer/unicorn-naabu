@@ -193,29 +193,24 @@ func runNaabu(target, ports string, fullTCP bool) []string {
 	cmd.Wait()
 	return openPorts
 }
-
-// ==== RUN NMAP ====
-func runNmap(target, portList string, fullTCP, useSudo bool) {
-	args := []string{"-sC", "-sV", "-Pn"}
-	if fullTCP || portList == "1-65535" {
-		args = append(args, "-p-", target)
-	} else {
-		args = append(args, "-p", portList, target)
+func runNmap(target, ports string, fullTCP, useSudo bool) {
+	args := []string{"-T4", "-Pn", "-p", ports, target}
+	if fullTCP {
+		args = []string{"-T4", "-Pn", "-p-", target}
 	}
 
-	fmt.Println(Cyan + "[*] Running Nmap..." + Reset)
-
-	var nmapCmd *exec.Cmd
+	var cmd *exec.Cmd
 	if useSudo {
-		allArgs := append([]string{"nmap"}, args...)
-		nmapCmd = exec.Command("sudo", allArgs...)
+		cmd = exec.Command("sudo", append([]string{"nmap"}, args...)...)
 	} else {
-		// Corrected line: use the spread operator to unpack the args slice
-		nmapCmd = exec.Command("nmap", args...)
+		cmd = exec.Command("nmap", args...)
 	}
-	nmapCmd.Stdout = os.Stdout
-	nmapCmd.Stderr = os.Stderr
-	if err := nmapCmd.Run(); err != nil {
-		fmt.Println(Red + "[!] Error running Nmap: " + err.Error() + Reset)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	fmt.Printf("%s[Nmap] Running scan...%s\n", Cyan, Reset)
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("%s[!] Error running Nmap: %s%s\n", Red, err.Error(), Reset)
 	}
 }
