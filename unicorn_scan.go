@@ -148,13 +148,18 @@ func startSpinner(target string) chan struct{} {
 // ==== RUN NAABU ====
 func runNaabu(target, ports string, fullTCP bool) []string {
 	args := []string{"-silent", "-host", target, "-no-ping"}
+
+	// If fullTCP is true, scan ALL 65,535 ports
 	if fullTCP {
-		args = append(args, "-p-")
+		args = append(args, "-p", "-")
+	} else if ports != "" {
+		// If specific ports provided, scan them
+		args = append(args, "-p", ports)
 	} else {
-		args = append(args, "-ports", ports)
+		// Default: still scan ALL ports (not just 80/443)
+		args = append(args, "-p", "-")
 	}
 
-	// Corrected line: use the spread operator to unpack the args slice
 	cmd := exec.Command("naabu", args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -193,10 +198,16 @@ func runNaabu(target, ports string, fullTCP bool) []string {
 	cmd.Wait()
 	return openPorts
 }
+
+// ==== RUN NMAP ====
 func runNmap(target, ports string, fullTCP, useSudo bool) {
-	args := []string{"-T4", "-Pn", "-p", ports, target}
+	var args []string
 	if fullTCP {
-		args = []string{"-T4", "-Pn", "-p-", target}
+		// Full TCP scan
+		args = []string{"-T4", "-Pn", "-p-", "-sV", "-sC", target}
+	} else {
+		// If Naabu gave us specific ports
+		args = []string{"-T4", "-Pn", "-p", ports, "-sV", "-sC", target}
 	}
 
 	var cmd *exec.Cmd
