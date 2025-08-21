@@ -62,36 +62,50 @@ func printBanners(target string) {
 
 // ==== MAIN ====
 func main() {
-	target := flag.String("target", "", "Target IP or hostname")
-	fullTCP := flag.Bool("full-tcp", true, "Scan all TCP ports (1-65535) by default")
-	fullScan := flag.Bool("full", false, "Run full Naabu + Nmap + OS detection scan")
-	useSudo := flag.Bool("sudo", true, "Use sudo for SYN scans by default")
-	timing := flag.Int("T", 5, "Nmap timing template (0-5)")
-	minRate := flag.Int("min-rate", 5000, "Naabu minimum rate for speed")
-	retries := flag.Int("retries", 3, "Number of retries if no ports found")
-	backoff := flag.Int("backoff", 3, "Backoff seconds between retries")
-	saveFile := flag.String("save", "", "Optional file to save Naabu/Nmap outputs")
-	flag.Parse()
+    target := flag.String("target", "", "Target IP or hostname")
+    fullTCP := flag.Bool("full-tcp", true, "Scan all TCP ports (1-65535) by default")
+    fullScan := flag.Bool("full", false, "Run full Naabu + Nmap + OS detection scan")
+    useSudo := flag.Bool("sudo", true, "Use sudo for SYN scans by default")
+    timing := flag.Int("T", 5, "Nmap timing template (0-5)")
+    minRate := flag.Int("min-rate", 5000, "Naabu minimum rate for speed")
+    saveFile := flag.String("save", "", "Optional file to save Naabu/Nmap outputs")
+    flag.Parse()
 
-	if *target == "" && len(flag.Args()) > 0 {
-		*target = flag.Args()[0]
-	}
-	if *target == "" {
-		fmt.Println(Red + "[!] Please specify a target with -target or as the first argument" + Reset)
-		os.Exit(1)
-	}
+    if *target == "" && len(flag.Args()) > 0 {
+        *target = flag.Args()[0]
+    }
+    if *target == "" {
+        fmt.Println(Red + "[!] Please specify a target with -target or as the first argument" + Reset)
+        os.Exit(1)
+    }
 
-	if *useSudo && os.Geteuid() != 0 {
-		fmt.Println(Red + "[!] SYN scans require sudo/root. Please run this script with sudo." + Reset)
-		os.Exit(1)
-	}
+    if *useSudo && os.Geteuid() != 0 {
+        fmt.Println(Red + "[!] SYN scans require sudo/root. Please run this script with sudo." + Reset)
+        os.Exit(1)
+    }
 
-	printBanners(*target)
+    printBanners(*target)
 
-	if *fullScan {
-		runFullScan(*target, *fullTCP, *useSudo, *minRate, *timing, *saveFile)
-		return
-	}
+    if *fullScan {
+        runFullScan(*target, *fullTCP, *useSudo, *minRate, *timing, *saveFile)
+        return
+    }
+
+    // Always start with Naabu full sweep
+    openPorts := runNaabuLive(*target, *fullTCP, *useSudo, *minRate, *saveFile)
+
+    if len(openPorts) > 0 {
+        sortPorts(openPorts)
+        portList := strings.Join(openPorts, ",")
+        fmt.Printf("%s[Naabu] Open ports found: %s%s\n\n", Purple, portList, Reset)
+        runNmapColor(*target, portList, *useSudo, *timing, *saveFile)
+    } else {
+        fmt.Printf("%s[!] No open ports found, escalating straight to full TCP Nmap scan...%s\n", Red, Reset)
+        runNmapFull(*target, *useSudo, *timing, *saveFile)
+    }
+
+    fmt.Println(Green + "[+] Scan summary complete." + Reset)
+}
 
 	// Standard behavior with retries/backoff
 	openPorts := []string{}
@@ -123,7 +137,6 @@ func main() {
 	fmt.Println(Green + "[+] Scan summary complete." + Reset)
 }
 
-// ==== FULL SCAN FUNCTION ====
 // ==== FULL SCAN FUNCTION ====
 func runFullScan(target string, fullTCP, useSudo bool, minRate, timing int, saveFile string) {
 	fmt.Println(Cyan + "[*] Running FULL Naabu + Nmap + OS detection..." + Reset)
@@ -160,14 +173,6 @@ func runFullScan(target string, fullTCP, useSudo bool, minRate, timing int, save
 
 	fmt.Println(Green + "[+] Full scan summary complete." + Reset)
 }
-
-// ==== NMAP FULL SCAN WITH OS DETECTION ====
-func runNmapFullScan(target, ports string, useSudo bool, timing int, saveFile string) {
-	args := []string{"-sS", "-sV", "-O", "-Pn", "-p", ports, "-T" + strconv.Itoa(timing), target}
-	fmt.Println(Cyan + "[*] Running full Nmap scan with OS detection..." + Reset)
-	runCmdLiveSave("nmap", args, useSudo, saveFile)
-}
-
 // ==== NAABU LIVE ====
 func runNaabuLive(target string, fullTCP, useSudo bool, minRate int, saveFile string) []string {
     args := []string{"-host", target, "-oJ", "-", "--min-rate", strconv.Itoa(minRate)}
@@ -240,12 +245,6 @@ func runNmapFullScan(target, ports string, useSudo bool, timing int, saveFile st
 func runNmapFull(target string, useSudo bool, timing int, saveFile string) {
 	args := []string{"-sS", "-sV", "-Pn", "-p-", "-T" + strconv.Itoa(timing), target}
 	fmt.Println(Cyan + "[*] Running full Nmap scan..." + Reset)
-	runCmdLiveSave("nmap", args, useSudo, saveFile)
-}
-
-func runNmapCommon(target string, useSudo bool, timing int, saveFile string) {
-	args := []string{"-sS", "-sV", "-Pn", "-T" + strconv.Itoa(timing), target}
-	fmt.Println(Cyan + "[*] Running fast common ports Nmap scan..." + Reset)
 	runCmdLiveSave("nmap", args, useSudo, saveFile)
 }
 
