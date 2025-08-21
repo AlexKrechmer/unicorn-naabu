@@ -115,7 +115,11 @@ func main() {
 
 // ==== NAABU LIVE ====
 func runNaabuLive(target string, fullTCP, useSudo bool, minRate int, saveFile string) []string {
-	args := []string{"-silent", "-host", target, "-no-ping", "--min-rate", strconv.Itoa(minRate)}
+	args := []string{
+		"-silent", "-host", target,
+		"-no-ping", "-verify", "-udp", "-passive", // enabled DNS dedup, UDP, Shodan passive
+		"--min-rate", strconv.Itoa(minRate),
+	}
 	if fullTCP {
 		args = append(args, "-p-")
 	}
@@ -219,7 +223,7 @@ func runNmapColor(target, ports string, useSudo bool, timing *int, saveFile stri
 	for scanner.Scan() {
 		line := scanner.Text()
 		colored := line
-		if strings.Contains(line, "/tcp") {
+		if strings.Contains(line, "/tcp") || strings.Contains(line, "/udp") {
 			switch {
 			case strings.Contains(line, "open"):
 				colored = Green + line + Reset
@@ -282,7 +286,7 @@ func runCmdLiveSave(name string, args []string, useSudo bool, saveFile string) {
 		line := scanner.Text()
 		fmt.Println(line) // print to console
 		if file != nil {
-			file.WriteString(line + "\n") // also write to file
+			file.WriteString(line + "\n")
 		}
 	}
 
