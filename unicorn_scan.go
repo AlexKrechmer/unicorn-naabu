@@ -70,13 +70,11 @@ func runNaabuFull(target string, minRate int, useSudo bool) []string {
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
 	if err := cmd.Run(); err != nil {
 		fmt.Println(Red+"[!] Naabu scan failed:", err, Reset)
 		os.Exit(1)
 	}
 
-	// Parse ports from file
 	content, err := os.ReadFile(openPortsFile)
 	if err != nil {
 		fmt.Println(Red+"[!] Failed to read open ports file:", err, Reset)
@@ -93,20 +91,26 @@ func runNaabuFull(target string, minRate int, useSudo bool) []string {
 				continue
 			}
 			portPart := strings.SplitN(parts[1], ",", 2)[0]
-			portPart = strings.TrimSpace(portPart)
-			portNum, err := strconv.Atoi(portPart)
+			portNum, err := strconv.Atoi(strings.TrimSpace(portPart))
 			if err == nil {
 				portSet[portNum] = true
 			}
 		}
 	}
 
-	openPorts := []string{}
+	openPorts := []int{}
 	for p := range portSet {
-		openPorts = append(openPorts, strconv.Itoa(p))
+		openPorts = append(openPorts, p)
 	}
-	sort.IntsFunc(openPorts, func(i, j int) bool { a, _ := strconv.Atoi(openPorts[i]); b, _ := strconv.Atoi(openPorts[j]); return a < b })
-	return openPorts
+	sort.Ints(openPorts)
+
+	openPortsStr := []string{}
+	for _, p := range openPorts {
+		openPortsStr = append(openPortsStr, strconv.Itoa(p))
+	}
+
+	fmt.Println(Green+"[*] Naabu found ports:", strings.Join(openPortsStr, ", "), Reset)
+	return openPortsStr
 }
 
 // ==== RUN NMAP FULL SCAN ====
@@ -114,7 +118,7 @@ func runNmapFull(target string, ports []string, useSudo bool, timing int) {
 	portList := "-p-"
 	if len(ports) > 0 {
 		portList = strings.Join(ports, ",")
-		fmt.Printf(Green+"[+] Open ports found: %s%s\n", portList, Reset)
+		fmt.Printf(Green+"[+] Open ports for Nmap: %s%s\n", portList, Reset)
 	} else {
 		fmt.Println(Red + "[!] No open ports found, running full TCP scan..." + Reset)
 	}
@@ -136,9 +140,8 @@ func runNmapFull(target string, ports []string, useSudo bool, timing int) {
 // ==== MAIN ====
 func main() {
 	target := flag.String("target", "", "Target IP or hostname")
-	fullScan := flag.Bool("full", false, "Run full Naabu + Nmap + OS detection scan")
-	minRate := flag.Int("min-rate", 5000, "Naabu minimum rate for speed")
-	useSudo := flag.Bool("sudo", true, "Use sudo for SYN scans")
+	minRate := flag.Int("min-rate", 5000, "Naabu minimum rate")
+	useSudo := flag.Bool("sudo", true, "Use sudo for scans")
 	timing := flag.Int("T", 5, "Nmap timing template (0-5)")
 	flag.Parse()
 
@@ -157,12 +160,8 @@ func main() {
 
 	printBanners(*target)
 
-	if *fullScan {
-		openPorts := runNaabuFull(*target, *minRate, *useSudo)
-		runNmapFull(*target, openPorts, *useSudo, *timing)
-		fmt.Println(Green + "[+] Full scan complete." + Reset)
-		return
-	}
+	openPorts := runNaabuFull(*target, *minRate, *useSudo)
+	runNmapFull(*target, openPorts, *useSudo, *timing)
 
-	fmt.Println(Yellow + "[*] Use -full to run Naabu + Nmap automatically" + Reset)
+	fmt.Println(Green + "[+] Full Naabu + Nmap scan complete." + Reset)
 }
