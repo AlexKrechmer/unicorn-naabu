@@ -61,8 +61,8 @@ func runNaabuFull(target string, minRate int, useSudo bool) []string {
 	fmt.Println(Cyan + "[*] Starting full Naabu sweep..." + Reset)
 	openPortsFile := "open_ports.txt"
 
-	// ✅ Patch for modern Naabu: use "-ports full" instead of "-p-"
-	args := []string{"-host", target, "-ports", "full", "-json", "--rate", strconv.Itoa(minRate), "-o", openPortsFile}
+	// Updated for v2.3.5
+	args := []string{"-host", target, "-p", "-", "-json", "--rate", strconv.Itoa(minRate), "-o", openPortsFile}
 
 	var cmd *exec.Cmd
 	if useSudo {
@@ -114,28 +114,33 @@ func runNaabuFull(target string, minRate int, useSudo bool) []string {
 	fmt.Println(Green+"[*] Naabu found ports:", strings.Join(openPortsStr, ", "), Reset)
 	return openPortsStr
 }
+
 // ==== RUN NMAP FULL SCAN ====
 func runNmapFull(target string, ports []string, useSudo bool, timing int) {
-	portList := "-p-"
+	args := []string{"-A", "-T" + strconv.Itoa(timing)}
 	if len(ports) > 0 {
-		portList = strings.Join(ports, ",")
-		fmt.Printf(Green+"[+] Open ports for Nmap: %s%s\n", portList, Reset)
+		args = append(args, "-p", strings.Join(ports, ","))
+		fmt.Printf(Green+"[+] Open ports for Nmap: %s%s\n", strings.Join(ports, ","), Reset)
 	} else {
+		args = append(args, "-p-", target)
 		fmt.Println(Red + "[!] No open ports found, running full TCP scan..." + Reset)
 	}
 
-	args := []string{"-A", "-T" + strconv.Itoa(timing), portList, target}
+	args = append(args, target)
+
+	var cmd *exec.Cmd
 	if useSudo {
-		args = append([]string{"nmap", "--privileged"}, args...)
+		cmd = exec.Command("sudo", append([]string{"nmap"}, args...)...)
 	} else {
-		args = append([]string{"nmap"}, args...)
+		cmd = exec.Command("nmap", args...)
 	}
 
 	fmt.Println(Cyan + "[*] Running Nmap full scan..." + Reset)
-	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		fmt.Println(Red+"[!] Nmap scan failed:", err, Reset)
+	}
 }
 
 // ==== MAIN ====
