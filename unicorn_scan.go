@@ -99,9 +99,10 @@ func main() {
 
 	openPorts := runNaabuLiveAsync(*target, *fullTCP, *useSudo, *minRate, *saveFile)
 
+	portList := ""
 	if len(openPorts) > 0 {
 		sortPorts(openPorts)
-		portList := strings.Join(openPorts, ",")
+		portList = strings.Join(openPorts, ",")
 		fmt.Printf("%s[Naabu] Open ports found: %s%s\n\n", Purple, portList, Reset)
 		runNmapColor(*target, portList, *useSudo, *timing, *saveFile)
 	} else {
@@ -110,6 +111,35 @@ func main() {
 	}
 
 	fmt.Println(Green + "[+] Scan summary complete." + Reset)
+}
+
+// ==== RUN FULL NAABU + NMAP + OS DETECTION ====
+func runFullScan(target string, fullTCP, useSudo bool, minRate, timing int, saveFile string) {
+	fmt.Println(Yellow + "[*] Running full scan mode: Naabu + Nmap + OS detection" + Reset)
+
+	openPorts := runNaabuLiveAsync(target, fullTCP, useSudo, minRate, saveFile)
+
+	if len(openPorts) > 0 {
+		sortPorts(openPorts)
+		portList := strings.Join(openPorts, ",")
+		fmt.Printf("%s[Naabu] Open ports found: %s%s\n\n", Purple, portList, Reset)
+		args := []string{"-A", "-T" + strconv.Itoa(timing), "-p", portList, target}
+		if useSudo {
+			args = append([]string{"nmap", "--privileged"}, args...)
+		} else {
+			args = append([]string{"nmap"}, args...)
+		}
+		runCommand(args, saveFile, "[Nmap] Aggressive scan with OS detection:")
+	} else {
+		fmt.Printf("%s[!] No open ports from Naabu. Running full Nmap -A scan...%s\n", Red, Reset)
+		args := []string{"-A", "-T" + strconv.Itoa(timing), "-p-", target}
+		if useSudo {
+			args = append([]string{"nmap", "--privileged"}, args...)
+		} else {
+			args = append([]string{"nmap"}, args...)
+		}
+		runCommand(args, saveFile, "[Nmap] Full -A TCP scan results:")
+	}
 }
 
 // ==== NAABU LIVE ASYNC (JSON PARSE + live printing) ====
@@ -151,11 +181,9 @@ func runNaabuLiveAsync(target string, fullTCP, useSudo bool, minRate int, saveFi
 
 		var result map[string]interface{}
 		if err := json.Unmarshal([]byte(line), &result); err != nil {
-			// ignore non-JSON lines
 			continue
 		}
 
-		// check if port info exists
 		if portObj, ok := result["port"].(map[string]interface{}); ok {
 			if portVal, ok := portObj["port"].(float64); ok {
 				port := int(portVal)
@@ -203,37 +231,7 @@ func runNmapFull(target string, useSudo bool, timing int, saveFile string) {
 	runCommand(args, saveFile, "[Nmap] Full TCP scan results:")
 }
 
-// ==== RUN FULL NAABU + NMAP + OS DETECTION ====
-func runFullScan(target string, fullTCP, useSudo bool, minRate, timing int, saveFile string) {
-	fmt.Println(Yellow + "[*] Running full scan mode: Naabu + Nmap + OS detection" + Reset)
-
-	openPorts := runNaabuLiveAsync(target, fullTCP, useSudo, minRate, saveFile)
-
-	if len(openPorts) > 0 {
-		sortPorts(openPorts)
-		portList := strings.Join(openPorts, ",")
-		fmt.Printf("%s[Naabu] Open ports found: %s%s\n\n", Purple, portList, Reset)
-		// Add -A for OS detection
-		args := []string{"-A", "-T" + strconv.Itoa(timing), "-p", portList, target}
-		if useSudo {
-			args = append([]string{"nmap", "--privileged"}, args...)
-		} else {
-			args = append([]string{"nmap"}, args...)
-		}
-		runCommand(args, saveFile, "[Nmap] Aggressive scan with OS detection:")
-	} else {
-		fmt.Printf("%s[!] No open ports from Naabu. Running full Nmap -A scan...%s\n", Red, Reset)
-		args := []string{"-A", "-T" + strconv.Itoa(timing), "-p-", target}
-		if useSudo {
-			args = append([]string{"nmap", "--privileged"}, args...)
-		} else {
-			args = append([]string{"nmap"}, args...)
-		}
-		runCommand(args, saveFile, "[Nmap] Full -A TCP scan results:")
-	}
-}
-
-// ==== GENERIC COMMAND RUNNER (shared by Nmap funcs) ====
+// ==== GENERIC COMMAND RUNNER ====
 func runCommand(args []string, saveFile, banner string) {
 	fmt.Println(Cyan + banner + Reset)
 
