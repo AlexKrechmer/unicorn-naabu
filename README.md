@@ -30,46 +30,46 @@
                 projectdiscovery.io
 </pre>⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
                 
-# Unicorn Scan Overview
+Unicorn Scan
 
-Unicorn Scan is a fast and easy-to-use network port scanner built on Naabu, with enhanced readability, colorful output, and a unicorn twist. Perfect for security enthusiasts, students, and pentesters who want both speed and style in their scans.
+Unicorn Scan is a fast, easy-to-use network port scanner built on Naabu, with enhanced readability, colorful output, and a unicorn twist. Perfect for security enthusiasts, students, and pentesters who want both speed and style in their scans.
 
-#Features
+Features
 
--Lightning-fast port scanning using Naabu as a backend.
+Lightning-fast port scanning using Naabu as a backend.
 
--Colorized, easy-to-read output:
+Colorized, easy-to-read output:
 
--Open ports highlighted in green
+Open ports highlighted in green
 
--Closed ports in gray, filtered in yellow, others in cyan
+Closed ports in gray
 
--Scan metadata and Nmap results in cyan
+Filtered ports in yellow
 
--Automatic Nmap service/version detection for all discovered ports.
+Other info and scan metadata in cyan
 
-#Quick presets:
-
--fast: Scans common ports (80, 443)
-
--full: Scans all TCP ports (-p-)
-
-Minimal setup: Just one binary to run.
+Automatic Nmap service/version detection for all discovered ports.
 
 Spinner animation while scanning to track progress.
 
 Verbose mode for detailed insights.
 
-Unique unicorn branding for a touch of fun without the fluff.
+Minimal setup: Just one binary to run.
 
+Quick presets:
+
+-fast → scans common ports (80, 443)
+
+-full → scans all TCP ports (-p-)
+
+Unique unicorn theme adds.
 Quick Start – Copy & Scan
 
 Run this to clone, build, and scan a target in one go:
 
-# Clone the repo and enter directory
-`git clone https://github.com/AlexKrechmer/unicorn-naabu.git`
-
-`cd unicorn-naabu`
+# Clone the repo
+```git clone https://github.com/username/unicorn-naabu.git```
+```cd unicorn-naabu```
 
 (Optional) Install Naabu if not already installed
 `go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest`
@@ -91,36 +91,29 @@ Naabu installed and in your PATH:
 
 `go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest`
 
+Installation (Optional Prerequisites)
 
-Ensure $GOPATH/bin is in your PATH:
+Go installed (for building the scanner).
 
-export PATH=$PATH:~/go/bin
+Naabu installed and in your PATH:
+```export PATH=$PATH:~/go/bin```
 
-#Options
 Flag	Description
 -h, --help	Show help menu
 -v, --verbose	Enable verbose output
-<target>	Target hostname or IP to scan
+Target IP or hostname	Specify the target to scan
 -fast	Scan common ports (80, 443)
 -full	Scan all TCP ports (-p-)
-Usage
-sudo ./unicorn_scan <target>
-
-
-Example:
-
-sudo ./unicorn_scan example.com
-
 
 Scans the target for open ports
 
-Automatically runs Nmap service/version detection
+Automatically runs Nmap service/version detection on discovered ports
 
 Outputs results in a colorful, easy-to-read format
 
-#Contributing
+Contributing
 
-Contributions are welcome! Feel free to:
+Contributions are welcome! You can:
 
 Open issues for bugs or feature requests
 
@@ -128,12 +121,11 @@ Fork the repository and submit pull requests
 
 Suggest ideas to make Unicorn Scan even more magical 🦄
 
-#License
+License
 
-This project is licensed under the MIT License.
-Based on Naabu.
+This project is licensed under the MIT License. Based on Naabu.
 
-#Acknowledgements
+Acknowledgements
 
 ProjectDiscovery/Naabu – The powerful port scanning engine behind Unicorn Scan
 
