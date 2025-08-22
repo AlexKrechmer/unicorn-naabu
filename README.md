@@ -69,6 +69,7 @@ Run this to clone, build, and scan a target in one go:
 
 # Clone the repo
 ```git clone https://github.com/username/unicorn-naabu.git```
+
 ```cd unicorn-naabu```
 
 (Optional) Install Naabu if not already installed
