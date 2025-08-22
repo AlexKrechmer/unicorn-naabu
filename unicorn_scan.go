@@ -60,7 +60,9 @@ func printBanners(target string) {
 func runNaabuFull(target string, minRate int, useSudo bool) []string {
 	fmt.Println(Cyan + "[*] Starting full Naabu sweep..." + Reset)
 	openPortsFile := "open_ports.txt"
-	args := []string{"-host", target, "-p-", "-json", "--rate", strconv.Itoa(minRate), "-o", openPortsFile}
+
+	// ✅ Patch for modern Naabu: use "-ports full" instead of "-p-"
+	args := []string{"-host", target, "-ports", "full", "-json", "--rate", strconv.Itoa(minRate), "-o", openPortsFile}
 
 	var cmd *exec.Cmd
 	if useSudo {
@@ -112,7 +114,6 @@ func runNaabuFull(target string, minRate int, useSudo bool) []string {
 	fmt.Println(Green+"[*] Naabu found ports:", strings.Join(openPortsStr, ", "), Reset)
 	return openPortsStr
 }
-
 // ==== RUN NMAP FULL SCAN ====
 func runNmapFull(target string, ports []string, useSudo bool, timing int) {
 	portList := "-p-"
