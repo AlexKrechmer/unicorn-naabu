@@ -82,7 +82,7 @@ Run this to clone, build, and scan a target in one go:
 `chmod +x unicorn_scan`
 
 # Scan your target
-`sudo ./unicorn_scan example.com`
+`sudo ./unicorn_scan example.com -full`
 
 #Installation (Optional Prerequisites)
 
