@@ -16,7 +16,6 @@ const (
 	Reset  = "\033[0m"
 	Red    = "\033[31m"
 	Green  = "\033[32m"
-	Yellow = "\033[33m"
 	Cyan   = "\033[36m"
 	Purple = "\033[35m"
 )
@@ -61,20 +60,19 @@ func runNaabuFull(target string, minRate int, useSudo bool) []string {
 	fmt.Println(Cyan + "[*] Starting full Naabu sweep..." + Reset)
 	openPortsFile := "open_ports.txt"
 
-	// Updated for v2.3.5
 	args := []string{"-host", target, "-p", "-", "-json", "--rate", strconv.Itoa(minRate), "-o", openPortsFile}
-
 	var cmd *exec.Cmd
 	if useSudo {
 		cmd = exec.Command("sudo", append([]string{"naabu"}, args...)...)
 	} else {
 		cmd = exec.Command("naabu", args...)
 	}
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		fmt.Println(Red+"[!] Naabu scan failed:", err, Reset)
-		os.Exit(1)
+		return nil
 	}
 
 	content, err := os.ReadFile(openPortsFile)
@@ -111,7 +109,12 @@ func runNaabuFull(target string, minRate int, useSudo bool) []string {
 		openPortsStr = append(openPortsStr, strconv.Itoa(p))
 	}
 
-	fmt.Println(Green+"[*] Naabu found ports:", strings.Join(openPortsStr, ", "), Reset)
+	if len(openPortsStr) > 0 {
+		fmt.Println(Green+"[*] Naabu found ports:", strings.Join(openPortsStr, ", "), Reset)
+	} else {
+		fmt.Println(Red + "[!] No open ports found, will default to full TCP scan in Nmap." + Reset)
+	}
+
 	return openPortsStr
 }
 
@@ -123,11 +126,9 @@ func runNmapFull(target string, ports []string, useSudo bool, timing int) {
 		fmt.Printf(Green+"[+] Open ports for Nmap: %s%s\n", strings.Join(ports, ","), Reset)
 	} else {
 		args = append(args, "-p-", target)
-		fmt.Println(Red + "[!] No open ports found, running full TCP scan..." + Reset)
 	}
 
 	args = append(args, target)
-
 	var cmd *exec.Cmd
 	if useSudo {
 		cmd = exec.Command("sudo", append([]string{"nmap"}, args...)...)
@@ -151,6 +152,7 @@ func main() {
 	timing := flag.Int("T", 5, "Nmap timing template (0-5)")
 	flag.Parse()
 
+	// Support positional args
 	if *target == "" && len(flag.Args()) > 0 {
 		*target = flag.Args()[0]
 	}
