@@ -68,7 +68,7 @@ Quick Start – Copy & Scan
 Run this to clone, build, and scan a target in one go:
 
 # Clone the repo
-```git clone https://github.com/username/unicorn-naabu.git```
+```git clone https://github.com/alexkrechmer/unicorn-naabu.git```
 
 ```cd unicorn-naabu```
 
